@@ -1,0 +1,23 @@
+{
+    "name": "php-baremetal/esp32-i2c-hal",
+    "description": "ESP32 implementation of the neutral I2C HAL (bm_i2c_hal.h) over esp_driver_i2c, with CORE1 buses and pollers on esp32-executor.",
+    "type": "bm-hal",
+    "license": "MIT",
+    "authors": [
+        { "name": "Gianfrancesco Aurecchia", "email": "gianfri@aurecchia.com" }
+    ],
+    "require": {
+        "php-baremetal/esp32-executor": "^1.0"
+    },
+    "provide": {
+        "php-baremetal/i2c-hal": "1.0.0"
+    },
+    "extra": {
+        "baremetal": {
+            "platform": "esp32",
+            "idf-requires": [
+                "esp_driver_i2c"
+            ]
+        }
+    }
+}
