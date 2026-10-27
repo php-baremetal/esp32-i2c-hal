@@ -15,7 +15,7 @@ background samplers on [esp32-executor](package:php-baremetal/esp32-executor). I
 ## Install
 
 You do not require it. ext-i2c requires the virtual `php-baremetal/i2c-hal`, and conductor adds this package
-when the project's SDK is on the `esp32` platform (`"sdk": "esp32@^1.0"`). Require the extension, or a driver:
+when the project's SDK is on the `esp32` platform (`"sdk": "esp32@^2.0"`). Require the extension, or a driver:
 
 ```bash
 composer require php-baremetal/ext-i2c
