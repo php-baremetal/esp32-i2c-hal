@@ -13,8 +13,11 @@
 
 /* ESP32 implementation of the i2c HAL (bm_i2c_hal.h) over esp_driver_i2c, FreeRTOS and the executor. */
 #include "bm_i2c_hal.h"
+#include "bm_events_hal.h"
 #include "executor.h"
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
+#include "esp_attr.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -308,6 +311,90 @@ bool bm_i2c_hal_poll_latest(void *poller, void *out)
 size_t bm_i2c_hal_poll_drain(void *poller, void *out, size_t max_samples)
 {
     return executor_poll_drain(poller, out, max_samples);
+}
+
+/* Interrupt service: one GPIO edge handler per device, kicking an executor on-demand job. */
+typedef struct {
+    executor_irq_t *job;
+    i2c_dev_t      *d;
+    int             pin;
+} irq_handle_t;
+
+/* The executor runs this on its task; the driver's service reads the chip through the HAL. The result is only
+ * logged. */
+static esp_err_t irq_service(void *arg)
+{
+    irq_handle_t *h = arg;
+    /* The service may stop its own handle (bm_i2c_hal_irq_stop runs inline there and frees h): copy first. */
+    i2c_dev_t *d = h->d;
+    int pin = h->pin;
+    bm_err_t e = d->driver->irq.service(d);
+    if (e != BM_OK) {
+        ESP_LOGW(TAG, "irq service on pin %d returned %s", pin, bm_i2c_hal_err_name(e));
+    }
+    return ESP_OK;
+}
+
+/* Interrupt context, IRAM: it only kicks the job (executor_irq_kick_from_isr is IRAM_ATTR). */
+static void IRAM_ATTR irq_isr(void *arg)
+{
+    /* gpio_isr_handler_remove clears fn and args without the ISR taking its lock, so an edge on the other core can
+     * still be called with args == NULL. */
+    irq_handle_t *h = arg;
+    if (h) {
+        executor_irq_kick_from_isr(h->job);
+    }
+}
+
+void *bm_i2c_hal_irq_start(i2c_dev_t *d, int pin)
+{
+    if (!d || !d->driver || !d->driver->irq.supported || !d->driver->irq.service || pin < 0 || pin >= GPIO_NUM_MAX || !GPIO_IS_VALID_GPIO(pin)) {
+        return NULL;
+    }
+    irq_handle_t *h = calloc(1, sizeof(*h));
+    if (!h) {
+        return NULL;
+    }
+    h->d = d;
+    h->pin = pin;
+    h->job = executor_irq(irq_service, h);
+    if (!h->job) {
+        free(h);
+        return NULL;
+    }
+    /* The events HAL configures the pin (input, pull-up, falling edge) and installs the GPIO ISR service in one
+     * place, so a firmware that also uses another GPIO interrupt (ext-display's TE) does not install it twice.
+     * It returns void, so a failure there cannot be seen here. Both this and stop run on the PHP task, which is
+     * what the HAL's install-once flag relies on. */
+    bm_hal_gpio_on_falling(pin, irq_isr, h);
+    return h;
+}
+
+void bm_i2c_hal_irq_after(void *h, uint32_t ms)
+{
+    executor_irq_after(((irq_handle_t *) h)->job, ms);
+}
+
+void bm_i2c_hal_irq_pause(void *h, bool paused)
+{
+    executor_irq_pause(((irq_handle_t *) h)->job, paused);
+}
+
+void bm_i2c_hal_irq_stop(void *h)
+{
+    irq_handle_t *ih = h;
+    if (!ih) {
+        return;
+    }
+    /* The handler goes first: the job must not be kicked once it is freed. The GPIO interrupt is routed to the
+     * core that installed the service, so give an edge already running there a full tick to finish (a delay of 1
+     * can end at the next tick interrupt, which may be microseconds away). bm_hal_gpio_off also disables the pin's
+     * interrupt. */
+    bm_hal_gpio_off(ih->pin);
+    vTaskDelay(2);
+    gpio_reset_pin((gpio_num_t) ih->pin);
+    executor_irq_cancel(ih->job);
+    free(ih);
 }
 
 const char *bm_i2c_hal_err_name(bm_err_t err)

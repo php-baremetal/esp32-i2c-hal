@@ -7,16 +7,18 @@
         { "name": "Gianfrancesco Aurecchia", "email": "gianfri@php-baremetal.com" }
     ],
     "require": {
-        "php-baremetal/esp32-executor": "^1.1"
+        "php-baremetal/esp32-executor": "^1.1.1",
+        "php-baremetal/events-hal": "^1.4"
     },
     "provide": {
-        "php-baremetal/i2c-hal": "1.1.0"
+        "php-baremetal/i2c-hal": "1.2.0"
     },
     "extra": {
         "baremetal": {
             "platform": "esp32",
             "idf-requires": [
-                "esp_driver_i2c"
+                "esp_driver_i2c",
+                "esp_driver_gpio"
             ]
         }
     }
