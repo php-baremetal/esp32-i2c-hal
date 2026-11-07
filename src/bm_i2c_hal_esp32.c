@@ -295,6 +295,11 @@ void bm_i2c_hal_poll_on_sample(void *poller, void (*notify)(void *arg), void *ar
     executor_poll_on_sample(poller, notify, arg);
 }
 
+void bm_i2c_hal_poll_pause(void *poller, bool paused)
+{
+    executor_poll_pause(poller, paused);
+}
+
 bool bm_i2c_hal_poll_latest(void *poller, void *out)
 {
     return executor_poll_latest(poller, out);

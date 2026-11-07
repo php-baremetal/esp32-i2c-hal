@@ -41,6 +41,8 @@ The PHP API, limits and errors are documented in
   task. The executor is pinned to core 0.
 - **Background sampling.** `poll()` starts an executor poller that calls the driver's sample function at the
   requested rate; the sample function takes the bus lock (or runs inline on a `CORE1` bus) itself.
+  `bm_i2c_hal_poll_pause()` (i2c-hal 1.1) pauses and resumes it through `executor_poll_pause()`; the package
+  provides `php-baremetal/i2c-hal` 1.1.0 and needs `php-baremetal/esp32-executor` 1.1.0.
 - **Errors.** ext-i2c messages end with the `esp_err_t` name (`ESP_ERR_TIMEOUT`, `ESP_ERR_NOT_FOUND`, …) or with
   one of two php-baremetal texts: `address already used by another driver on this bus` and
   `the port or a pin is already used by an I2C bus open with other pins`.
